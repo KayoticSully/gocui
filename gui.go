@@ -230,6 +230,46 @@ func (g *Gui) MainLoop() error {
 	return nil
 }
 
+// MainLoop runs the main loop until an error is returned. A successful
+// finish should return ErrorQuit.
+func (g *Gui) RefreshLoop(fps int) error {
+	go func() {
+		for {
+			g.events <- termbox.PollEvent()
+		}
+	}()
+
+	termbox.SetInputMode(termbox.InputAlt)
+
+	if err := g.Flush(); err != nil {
+		return err
+	}
+	for {
+		select {
+		case ev := <-g.events:
+			if err := g.handleEvent(&ev); err != nil {
+				return err
+			}
+			if err := g.consumeevents(); err != nil {
+				return err
+			}
+
+		default:
+			if err := g.Flush(); err != nil {
+				return err
+			}
+			time.Sleep(g.FPSDelay(fps))
+		}
+	}
+
+	return nil
+}
+
+func (g *Gui) FPSDelay(fps int) time.Duration {
+	timeout := (1.0 / float64(fps)) * 1000.0
+	return time.Duration(timeout) * time.Millisecond
+}
+
 // consumeevents handles the remaining events in the events pool.
 func (g *Gui) consumeevents() error {
 	for {
